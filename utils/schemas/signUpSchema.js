@@ -1,6 +1,6 @@
 const Joi = require("joi");
 
-const createUserSchema = Joi.object({
+const signUpSchema = Joi.object({
   name: Joi.string().required(),
   email: Joi.string().email().required(),
   password: Joi.string()
@@ -13,6 +13,9 @@ const createUserSchema = Joi.object({
         "Password must contain at least one uppercase letter, one lowercase letter, and one number",
       "any.required": "⚠️⚠️ Password is required",
     }),
+  passwordConfirm: Joi.string().required().valid(Joi.ref("password")).messages({
+    "any.only": "⚠️⚠️ Password and password confirm must be the same",
+  }),
 });
 
-module.exports = createUserSchema;
+module.exports = signUpSchema;

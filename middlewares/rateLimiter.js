@@ -1,5 +1,5 @@
 const { rateLimit } = require("express-rate-limit");
-const CustomError = require("../utils/schemas/customError");
+const CustomError = require("../utils/customError");
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes

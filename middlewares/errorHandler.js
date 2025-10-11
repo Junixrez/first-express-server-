@@ -1,4 +1,4 @@
-const CustomError = require("../utils/schemas/customError");
+const CustomError = require("../utils/customError");
 
 module.exports = (err, req, res, next) => {
   console.error(`❌❌ Error: ${err.message}`, err.stack);
@@ -27,6 +27,18 @@ module.exports = (err, req, res, next) => {
     return res.status(400).json({
       status: "error",
       message: `Duplicate value for field: ${field}`,
+    });
+  }
+
+  // JWT errors
+  if (
+    err.name === "JsonWebTokenError" ||
+    err.name === "TokenExpiredError" ||
+    err.name === "NotBeforeError"
+  ) {
+    return res.status(401).json({
+      status: "error",
+      message: "Invalid or expired token",
     });
   }
 
