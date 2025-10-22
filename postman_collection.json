@@ -1,0 +1,434 @@
+{
+  "info": {
+    "_postman_id": "00000000-0000-0000-0000-000000000000",
+    "name": "first-express-server — Users & Posts API",
+    "description": "Postman collection for the Express + MongoDB API.\nIncludes Users (signup, login, CRUD) and Posts (CRUD) endpoints with variables and tests to capture token, userId, and postId.\n\nNotes:\n- Collection-level Bearer auth uses the {{token}} variable captured from the Login response.\n- Signup sets {{testUserEmail}}, {{testUserPassword}} (defaults), and captures {{userId}}.\n- Create Post captures {{postId}}.\n- Use the Runner to execute requests in order: Users/Signup → Users/Login → Users/Get Users → Posts/... → Users/Delete User.\n",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "token", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "postId", "value": "" },
+    { "key": "testUserEmail", "value": "" },
+    { "key": "testUserPassword", "value": "" },
+    { "key": "page", "value": "1" },
+    { "key": "limit", "value": "10" }
+  ],
+  "item": [
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Signup",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "name": "Content-Type", "type": "text", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"{{testUserEmail}}\",\n  \"password\": \"{{testUserPassword}}\",\n  \"passwordConfirm\": \"{{testUserPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/signup",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "signup"]
+            },
+            "description": "Creates a new user. Defaults:\n- email: generated as user+<timestamp>@example.com if not set\n- password: StrongPass1 if not set\nCaptures userId from response."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"testUserPassword\")) {",
+                  "  pm.collectionVariables.set(\"testUserPassword\", \"StrongPass1\");",
+                  "}",
+                  "if (!pm.collectionVariables.get(\"testUserEmail\")) {",
+                  "  const ts = Date.now();",
+                  "  pm.collectionVariables.set(\"testUserEmail\", `user+${ts}@example.com`);",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201 Created\", function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "let json;",
+                  "try { json = pm.response.json(); } catch (e) { json = {}; }",
+                  "",
+                  "if (json && json.data) {",
+                  "  if (json.data._id) {",
+                  "    pm.collectionVariables.set(\"userId\", json.data._id);",
+                  "  }",
+                  "  if (json.data.email) {",
+                  "    pm.collectionVariables.set(\"testUserEmail\", json.data.email);",
+                  "  }",
+                  "}",
+                  "",
+                  "pm.test(\"Created user does not expose password\", function () {",
+                  "  pm.expect(json && json.data && json.data.password).to.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "name": "Content-Type", "type": "text", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testUserEmail}}\",\n  \"password\": \"{{testUserPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "login"]
+            },
+            "description": "Authenticates the user and captures the JWT token into {{token}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "let json;",
+                  "try { json = pm.response.json(); } catch (e) { json = {}; }",
+                  "const token = json && json.data ? json.data.token : undefined;",
+                  "if (token) {",
+                  "  pm.collectionVariables.set(\"token\", token);",
+                  "}",
+                  "pm.test(\"Token captured\", function () {",
+                  "  pm.expect(pm.collectionVariables.get(\"token\")).to.be.a(\"string\").and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Users (paginated, protected)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users?page={{page}}&limit={{limit}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"],
+              "query": [
+                { "key": "page", "value": "{{page}}" },
+                { "key": "limit", "value": "{{limit}}" }
+              ]
+            },
+            "description": "Requires Bearer token and role admin|user. Lists users with pagination."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "let json;",
+                  "try { json = pm.response.json(); } catch (e) { json = {}; }",
+                  "pm.test(\"Data is an array\", function () {",
+                  "  pm.expect(json && json.data).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get User by Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{userId}}"]
+            },
+            "description": "Fetch a single user by {{userId}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "let json;",
+                  "try { json = pm.response.json(); } catch (e) { json = {}; }",
+                  "pm.test(\"Returned user matches userId\", function () {",
+                  "  pm.expect(json && json.data && json.data._id).to.eql(pm.collectionVariables.get(\"userId\"));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update User (name/email)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "name": "Content-Type", "type": "text", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated User {{$timestamp}}\",\n  \"email\": \"{{testUserEmail}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{userId}}"]
+            },
+            "description": "Updates the user's name and/or email. Note: route is not protected in the server code; secure in production."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "let json;",
+                  "try { json = pm.response.json(); } catch (e) { json = {}; }",
+                  "pm.test(\"UserId unchanged\", function () {",
+                  "  pm.expect(json && json.data && json.data._id).to.eql(pm.collectionVariables.get(\"userId\"));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{userId}}"]
+            },
+            "description": "Deletes the user by {{userId}}. Note: not protected in the server code."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204 No Content\", function () {",
+                  "  pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Posts",
+      "item": [
+        {
+          "name": "Create Post",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "name": "Content-Type", "type": "text", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Hello {{$timestamp}}\",\n  \"content\": \"World\",\n  \"userId\": \"{{userId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/posts",
+              "host": ["{{baseUrl}}"],
+              "path": ["posts"]
+            },
+            "description": "Creates a Post associated to the captured {{userId}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201 Created\", function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "let json;",
+                  "try { json = pm.response.json(); } catch (e) { json = {}; }",
+                  "if (json && json.data && json.data._id) {",
+                  "  pm.collectionVariables.set(\"postId\", json.data._id);",
+                  "}",
+                  "pm.test(\"postId captured\", function () {",
+                  "  pm.expect(pm.collectionVariables.get(\"postId\")).to.be.a(\"string\").and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Posts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/posts",
+              "host": ["{{baseUrl}}"],
+              "path": ["posts"]
+            },
+            "description": "Gets all posts; userId is populated with name and email."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "let json;",
+                  "try { json = pm.response.json(); } catch (e) { json = {}; }",
+                  "pm.test(\"Data is an array\", function () {",
+                  "  pm.expect(json && json.data).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Post by Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/posts/{{postId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["posts", "{{postId}}"]
+            },
+            "description": "Fetch a post by {{postId}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "let json;",
+                  "try { json = pm.response.json(); } catch (e) { json = {}; }",
+                  "pm.test(\"Returned post matches postId\", function () {",
+                  "  pm.expect(json && json.data && json.data._id).to.eql(pm.collectionVariables.get(\"postId\"));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Post",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "name": "Content-Type", "type": "text", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Title\",\n  \"content\": \"Updated Content\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/posts/{{postId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["posts", "{{postId}}"]
+            },
+            "description": "Updates a post's title/content."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Post",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/posts/{{postId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["posts", "{{postId}}"]
+            },
+            "description": "Deletes the post by {{postId}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204 No Content\", function () {",
+                  "  pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
